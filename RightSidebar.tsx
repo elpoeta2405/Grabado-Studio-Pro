@@ -14,13 +14,12 @@ interface RightSidebarProps {
   isMirrored: boolean;
   setIsMirrored: (isMirrored: boolean) => void;
   resetImage: () => void;
-  setLoading: (isLoading: boolean) => void;
-  setLoadingMessage: (message: string) => void;
   isVisible: boolean;
   onClose: () => void;
   aiModel: string;
   onAiModelChange: (model: string) => void;
   onOpenApiModal: () => void;
+  onFinalizeHistory: () => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = (props) => {

@@ -8,8 +8,8 @@ import ApiModal from './components/ApiModal';
 import ContextualToolbar from './components/ContextualToolbar';
 import { EngravingSettings, ImageState, Material, CanvasObject, Tool, DitheringMode } from './types';
 import { DEFAULT_SETTINGS, MATERIAL_PRESETS } from './constants';
-import { editImage } from './services/geminiService';
-import { applyLocalDithering } from './services/imageProcessor';
+import { editImage } from './components/services/geminiService';
+import { applyLocalDithering } from './components/services/imageProcessor';
 
 type HistoryState = {
     image: ImageState | null;
@@ -18,6 +18,7 @@ type HistoryState = {
 
 type HistoryAction =
   | { type: 'PUSH'; payload: HistoryState }
+  | { type: 'UPDATE_PRESENT'; payload: Partial<HistoryState> }
   | { type: 'UNDO' }
   | { type: 'REDO' }
   | { type: 'CLEAR' };
@@ -36,6 +37,11 @@ function historyReducer(state: { past: HistoryState[]; present: HistoryState; fu
         present: action.payload,
         future: [],
       };
+    case 'UPDATE_PRESENT':
+        return {
+            ...state,
+            present: { ...state.present, ...action.payload },
+        };
     case 'UNDO':
       if (past.length === 0) return state;
       const previous = past[past.length - 1];
@@ -70,6 +76,7 @@ const App: React.FC = () => {
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [isApiModalOpen, setApiModalOpen] = useState(false);
     const [aiModel, setAiModel] = useState('gemini-2.5-flash-image');
+    const [aiError, setAiError] = useState<string | null>(null);
 
     const [activeTool, setActiveTool] = useState<Tool>('select');
     const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
@@ -109,11 +116,15 @@ const App: React.FC = () => {
       pushState({ objects: newObjects });
     };
 
-    const handleLocalImageUpdate = (newImageUrl: string) => {
+    const updateImagePreview = (newImageState: Partial<ImageState>) => {
         if (imageState) {
-            pushState({ image: { ...imageState, url: newImageUrl } });
+            dispatch({ type: 'UPDATE_PRESENT', payload: { image: { ...imageState, ...newImageState } } });
         }
     };
+    
+    const finalizeHistory = useCallback(() => {
+        dispatch({ type: 'PUSH', payload: currentCanvasState });
+    }, [currentCanvasState]);
     
     useEffect(() => {
         if (isInitialMount.current) {
@@ -133,16 +144,16 @@ const App: React.FC = () => {
         const handler = setTimeout(async () => {
             try {
                 const newImageUrl = await applyLocalDithering(imageState.originalUrl, settings);
-                handleLocalImageUpdate(newImageUrl);
+                updateImagePreview({ url: newImageUrl });
             } catch (error) {
                 console.error("Error applying dither preview:", error);
-                alert("Ocurrió un error al aplicar el efecto de trama.");
+                setAiError("Ocurrió un error al aplicar el efecto de trama.");
             }
         }, 300);
 
         return () => clearTimeout(handler);
 
-    }, [settings]);
+    }, [settings, imageState?.originalUrl]);
 
 
     const handleSaveApiKey = (newApiKey: string) => {
@@ -166,6 +177,7 @@ const App: React.FC = () => {
                 // Reset settings to default for new image to avoid applying old effects
                 setSettings(DEFAULT_SETTINGS);
                 isInitialMount.current = true; // Prevent effect from running on first render of new image
+                setAiError(null);
                 pushState({ image: newImageState, objects: [] });
             };
             reader.readAsDataURL(file);
@@ -177,6 +189,7 @@ const App: React.FC = () => {
             if (!apiKey) setApiModalOpen(true);
             return;
         }
+        setAiError(null);
         setLoading(true);
         setLoadingMessage(loadingText);
         try {
@@ -186,7 +199,12 @@ const App: React.FC = () => {
             const newUrl = `data:${newMimeType};base64,${newBase64}`;
             pushState({ image: { ...imageState, url: newUrl, originalUrl: newUrl } });
         } catch (error) {
-            alert(error instanceof Error ? error.message : "Ocurrió un error desconocido.");
+            const errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
+            setAiError(errorMessage);
+            // Check for keywords indicating an API key or permission issue
+            if (/api key|permission|credential|denied/i.test(errorMessage)) {
+                setApiModalOpen(true); // Re-open the modal
+            }
         } finally {
             setLoading(false);
         }
@@ -195,16 +213,20 @@ const App: React.FC = () => {
     const resetImage = () => {
         if (imageState && imageState.originalUrl) {
             pushState({ image: { ...imageState, url: imageState.originalUrl } });
+            setAiError(null);
         }
     };
     
     const handleSettingsChange = <K extends keyof EngravingSettings>(key: K, value: EngravingSettings[K]) => {
         setSettings(prev => ({ ...prev, [key]: value }));
+        setAiError(null);
     };
 
     const handleMaterialChange = (material: Material) => {
         const preset = MATERIAL_PRESETS[material];
         setSettings(prev => ({ ...prev, ...preset, material }));
+        setAiError(null);
+        finalizeHistory();
     };
 
     const handleExport = () => {
@@ -253,6 +275,24 @@ const App: React.FC = () => {
                             }}
                         />
                     )}
+                    {aiError && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-red-800 bg-opacity-90 border border-red-600 rounded-lg shadow-xl p-3 max-w-xl w-full z-20 text-white text-sm">
+                            <div className="flex items-start space-x-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-300 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                </svg>
+                                <div className="flex-1">
+                                    <p className="font-bold">Error de IA:</p>
+                                    <p className="break-words">{aiError}</p>
+                                </div>
+                                <button onClick={() => setAiError(null)} className="p-1 rounded-full hover:bg-red-700">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    )}
                     <Canvas 
                         imageState={imageState || { url: null, isVector: false, originalUrl: null }}
                         objects={objects}
@@ -273,7 +313,7 @@ const App: React.FC = () => {
                      {isLoading && (
                         <div className="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center z-30">
                             <div className="text-center">
-                                <svg className="animate-spin h-8 w-8 text-white mx-auto mb-3" xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <svg className="animate-spin h-8 w-8 text-white mx-auto mb-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
@@ -289,16 +329,14 @@ const App: React.FC = () => {
                     onSettingsChange={handleSettingsChange}
                     onAIOperation={handleAIOperation}
                     isMirrored={isMirrored}
-                    setIsMirrored={setIsMirrored}
+                    setIsMirrored={(value) => { setIsMirrored(value); finalizeHistory(); }}
                     resetImage={resetImage}
-                    setLoading={setLoading}
-                    setLoadingMessage={setLoadingMessage}
                     isVisible={isRightSidebarVisible}
                     onClose={() => setRightSidebarVisible(false)}
-                    // FIX: Pass missing aiModel and onAiModelChange props.
                     aiModel={aiModel}
                     onAiModelChange={setAiModel}
                     onOpenApiModal={() => setApiModalOpen(true)}
+                    onFinalizeHistory={finalizeHistory}
                 />
             </div>
         </div>

@@ -40,6 +40,9 @@ export async function editImage(apiKey: string, model: string, base64Image: stri
 
     } catch (error) {
         console.error("Error al editar la imagen:", error);
-        throw new Error("No se pudo conectar con el servicio de IA para editar la imagen.");
+        if (error instanceof Error) {
+            throw new Error(`Error del servicio de IA: ${error.message}`);
+        }
+        throw new Error("No se pudo conectar con el servicio de IA. Ocurrió un error desconocido.");
     }
 }
