@@ -1,5 +1,3 @@
-
-
 import React from 'react';
 import { EngravingSettings, Material, ImageState } from './types';
 import FinishingPanel from './components/FinishingPanel';
@@ -20,6 +18,7 @@ interface RightSidebarProps {
   onAiModelChange: (model: string) => void;
   onOpenApiModal: () => void;
   onFinalizeHistory: () => void;
+  onInteractionStart: () => void;
 }
 
 const RightSidebar: React.FC<RightSidebarProps> = (props) => {
@@ -38,7 +37,7 @@ const RightSidebar: React.FC<RightSidebarProps> = (props) => {
       <aside className={`fixed top-0 right-0 h-full w-80 bg-gray-900 border-l border-gray-700 flex flex-col z-40
                        transform transition-transform duration-300 ease-in-out
                        ${isVisible ? 'translate-x-0' : 'translate-x-full'}
-                       md:relative md:translate-x-0`}>
+                       md:relative md:translate-x-0 md:w-80`}>
         <div className="flex border-b border-gray-700 p-3 items-center justify-between">
          <h3 className="text-lg font-semibold text-gray-100">Edición y Acabado</h3>
             <button 

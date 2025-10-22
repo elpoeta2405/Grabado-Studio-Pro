@@ -14,6 +14,7 @@ interface FinishingPanelProps {
   aiModel: string;
   onAiModelChange: (model: string) => void;
   onFinalizeHistory: () => void;
+  onInteractionStart: () => void;
 }
 
 const Slider: React.FC<{
@@ -24,8 +25,9 @@ const Slider: React.FC<{
   step: number;
   onChange: (value: number) => void;
   onFinalChange?: () => void;
+  onInteractionStart?: () => void;
   unit?: string;
-}> = ({ label, value, min, max, step, onChange, onFinalChange, unit }) => (
+}> = ({ label, value, min, max, step, onChange, onFinalChange, onInteractionStart, unit }) => (
   <div className="space-y-1">
     <label className="flex justify-between text-sm font-medium text-gray-300">
       <span>{label}</span>
@@ -38,6 +40,8 @@ const Slider: React.FC<{
       step={step}
       value={value}
       onChange={(e) => onChange(parseFloat(e.target.value))}
+      onMouseDown={onInteractionStart}
+      onTouchStart={onInteractionStart}
       onMouseUp={onFinalChange}
       onTouchEnd={onFinalChange}
       className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
@@ -64,7 +68,8 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
     resetImage,
     aiModel,
     onAiModelChange,
-    onFinalizeHistory
+    onFinalizeHistory,
+    onInteractionStart
 }) => {
   const [aiPrompt, setAiPrompt] = useState('');
   const hasImage = !!imageState.url;
@@ -91,8 +96,8 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
                 className="w-full bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-primary mb-3"
                 disabled={!hasImage}
             >
-                <option value="gemini-2.5-flash">Gemini 2.5 Flash</option>
                 <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
+                <option value="gemini-pro">Gemini Pro</option>
             </select>
         </div>
         <p className="text-xs text-gray-400 mb-2">Describe un cambio, ej., "añade una luna en el cielo".</p>
@@ -139,14 +144,14 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
         </div>
       </Section>
 
-      <Section title="Acabado y Trama">
+      <Section title="Acabado y Trama (Vista Previa en Vivo)">
         <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Modo de Trama</label>
             <select
                 value={settings.dithering}
                 onChange={(e) => {
-                    onSettingsChange('dithering', e.target.value as DitheringMode);
                     onFinalizeHistory();
+                    onSettingsChange('dithering', e.target.value as DitheringMode);
                 }}
                 className="w-full bg-gray-800 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-primary"
             >
@@ -157,19 +162,19 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
             <div className="p-3 bg-gray-800 rounded-md space-y-4">
                  <h5 className="text-sm font-semibold text-center text-gray-200">Ajustes de {settings.dithering}</h5>
                  
-                 <Slider label="Brillo" value={settings.halftoneBrightness} min={-100} max={100} step={1} onChange={(v) => onSettingsChange('halftoneBrightness', v)} onFinalChange={onFinalizeHistory} />
-                 <Slider label="Contraste" value={settings.halftoneContrast} min={-100} max={100} step={1} onChange={(v) => onSettingsChange('halftoneContrast', v)} onFinalChange={onFinalizeHistory} />
+                 <Slider label="Brillo" value={settings.halftoneBrightness} min={-100} max={100} step={1} onChange={(v) => onSettingsChange('halftoneBrightness', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
+                 <Slider label="Contraste" value={settings.halftoneContrast} min={-100} max={100} step={1} onChange={(v) => onSettingsChange('halftoneContrast', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
 
-                 { settings.dithering === 'Umbral' && <Slider label="Umbral" value={settings.thresholdValue} min={0} max={255} step={1} onChange={(v) => onSettingsChange('thresholdValue', v)} onFinalChange={onFinalizeHistory} /> }
-                 { settings.dithering === 'Difusión de Error' && <Slider label="Niveles de Paleta" value={settings.errorDiffusionPaletteLevels} min={2} max={16} step={1} onChange={(v) => onSettingsChange('errorDiffusionPaletteLevels', v)} onFinalChange={onFinalizeHistory} /> }
+                 { settings.dithering === 'Umbral' && <Slider label="Umbral" value={settings.thresholdValue} min={0} max={255} step={1} onChange={(v) => onSettingsChange('thresholdValue', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} /> }
+                 { settings.dithering === 'Difusión de Error' && <Slider label="Niveles de Paleta" value={settings.errorDiffusionPaletteLevels} min={2} max={16} step={1} onChange={(v) => onSettingsChange('errorDiffusionPaletteLevels', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} /> }
                  { settings.dithering === 'Patrón Ordenado' && 
                     <div>
                         <label className="block text-sm font-medium text-gray-300 mb-1">Tamaño de Matriz</label>
                         <select
                             value={settings.orderedDitherMatrixSize}
                             onChange={(e) => {
-                                onSettingsChange('orderedDitherMatrixSize', parseInt(e.target.value));
                                 onFinalizeHistory();
+                                onSettingsChange('orderedDitherMatrixSize', parseInt(e.target.value));
                             }}
                             className="w-full bg-gray-900 border border-gray-600 rounded-md px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-primary"
                         >
@@ -179,17 +184,17 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
                         </select>
                     </div>
                  }
-                 { settings.dithering === 'Semitono' && <Slider label="Tamaño de punto" value={settings.halftoneDotSize} min={2} max={20} step={1} onChange={(v) => onSettingsChange('halftoneDotSize', v)} unit="px" onFinalChange={onFinalizeHistory} /> }
-                 { settings.dithering === 'Pop Art (Puntos)' && <Slider label="Espaciado de punto" value={settings.popArtDotSpacing} min={2} max={20} step={1} onChange={(v) => onSettingsChange('popArtDotSpacing', v)} unit="px" onFinalChange={onFinalizeHistory} /> }
-                 { settings.dithering === 'Grabado Lineal' && <Slider label="Espaciado de línea" value={settings.lineEngravingSpacing} min={1} max={10} step={1} onChange={(v) => onSettingsChange('lineEngravingSpacing', v)} unit="px" onFinalChange={onFinalizeHistory} /> }
-                 { settings.dithering === 'Grabado Grunge' && <Slider label="Intensidad" value={settings.grungeIntensity} min={1} max={20} step={1} onChange={(v) => onSettingsChange('grungeIntensity', v)} onFinalChange={onFinalizeHistory} /> }
+                 { settings.dithering === 'Semitono' && <Slider label="Tamaño de punto" value={settings.halftoneDotSize} min={2} max={20} step={1} onChange={(v) => onSettingsChange('halftoneDotSize', v)} unit="px" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} /> }
+                 { settings.dithering === 'Pop Art (Puntos)' && <Slider label="Espaciado de punto" value={settings.popArtDotSpacing} min={2} max={20} step={1} onChange={(v) => onSettingsChange('popArtDotSpacing', v)} unit="px" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} /> }
+                 { settings.dithering === 'Grabado Lineal' && <Slider label="Espaciado de línea" value={settings.lineEngravingSpacing} min={1} max={10} step={1} onChange={(v) => onSettingsChange('lineEngravingSpacing', v)} unit="px" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} /> }
+                 { settings.dithering === 'Grabado Grunge' && <Slider label="Intensidad" value={settings.grungeIntensity} min={1} max={20} step={1} onChange={(v) => onSettingsChange('grungeIntensity', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} /> }
                  { settings.dithering === 'Dibujo a Lápiz' && <>
-                    <Slider label="Desenfoque" value={settings.pencilSketchBlur} min={2} max={20} step={1} onChange={(v) => onSettingsChange('pencilSketchBlur', v)} unit="px" onFinalChange={onFinalizeHistory} />
-                    <Slider label="Grosor de Trazo" value={settings.pencilSketchStrokeWeight} min={0.5} max={3} step={0.1} onChange={(v) => onSettingsChange('pencilSketchStrokeWeight', v)} onFinalChange={onFinalizeHistory} />
+                    <Slider label="Desenfoque" value={settings.pencilSketchBlur} min={2} max={20} step={1} onChange={(v) => onSettingsChange('pencilSketchBlur', v)} unit="px" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
+                    <Slider label="Grosor de Trazo" value={settings.pencilSketchStrokeWeight} min={0.5} max={3} step={0.1} onChange={(v) => onSettingsChange('pencilSketchStrokeWeight', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
                  </>}
             </div>
         )}
-        <Slider label="Resolución" value={settings.resolution} min={100} max={1000} step={1} onChange={(v) => onSettingsChange('resolution', v)} unit=" DPI" onFinalChange={onFinalizeHistory} />
+        <Slider label="Resolución" value={settings.resolution} min={100} max={1000} step={1} onChange={(v) => onSettingsChange('resolution', v)} unit=" DPI" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
       </Section>
     </div>
   );

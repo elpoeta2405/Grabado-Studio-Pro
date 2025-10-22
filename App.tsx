@@ -21,7 +21,8 @@ type HistoryAction =
   | { type: 'UPDATE_PRESENT'; payload: Partial<HistoryState> }
   | { type: 'UNDO' }
   | { type: 'REDO' }
-  | { type: 'CLEAR' };
+  | { type: 'RESET'; payload: HistoryState }
+  | { type: 'ARCHIVE_PAST_STATE'; payload: HistoryState };
 
 function historyReducer(state: { past: HistoryState[]; present: HistoryState; future: HistoryState[] }, action: HistoryAction) {
   const { past, present, future } = state;
@@ -37,6 +38,15 @@ function historyReducer(state: { past: HistoryState[]; present: HistoryState; fu
         present: action.payload,
         future: [],
       };
+    case 'ARCHIVE_PAST_STATE':
+        if (JSON.stringify(action.payload) === JSON.stringify(present)) {
+            return state;
+        }
+        return {
+            ...state,
+            past: [...past, action.payload],
+            future: [],
+        };
     case 'UPDATE_PRESENT':
         return {
             ...state,
@@ -60,8 +70,8 @@ function historyReducer(state: { past: HistoryState[]; present: HistoryState; fu
         present: next,
         future: newFuture,
       };
-    case 'CLEAR':
-        return { past: [], present: { image: null, objects: [] }, future: [] };
+    case 'RESET':
+        return { past: [], present: action.payload, future: [] };
     default:
       return state;
   }
@@ -80,9 +90,10 @@ const App: React.FC = () => {
 
     const [activeTool, setActiveTool] = useState<Tool>('select');
     const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
-    const [isRightSidebarVisible, setRightSidebarVisible] = useState(false);
+    const [isRightSidebarVisible, setRightSidebarVisible] = useState(true);
 
     const isInitialMount = useRef(true);
+    const historyStateBeforeUpdate = useRef<HistoryState | null>(null);
 
 
     useEffect(() => {
@@ -122,8 +133,24 @@ const App: React.FC = () => {
         }
     };
     
+    const handleInteractionStart = useCallback(() => {
+        if (!historyStateBeforeUpdate.current) {
+            historyStateBeforeUpdate.current = currentCanvasState;
+        }
+    }, [currentCanvasState]);
+    
     const finalizeHistory = useCallback(() => {
-        dispatch({ type: 'PUSH', payload: currentCanvasState });
+        const stateBefore = historyStateBeforeUpdate.current;
+        historyStateBeforeUpdate.current = null; // Always reset
+
+        if (stateBefore) {
+            // Continuous interaction (slider). 'present' is already updated.
+            // Push the state from *before* the interaction into the past array.
+            dispatch({ type: 'ARCHIVE_PAST_STATE', payload: stateBefore });
+        } else {
+            // Discrete action (button). Push the current state before the action's effect is applied.
+            dispatch({ type: 'PUSH', payload: currentCanvasState });
+        }
     }, [currentCanvasState]);
     
     useEffect(() => {
@@ -138,8 +165,14 @@ const App: React.FC = () => {
 
         const ditherModes: DitheringMode[] = ['Umbral', 'Difusión de Error', 'Patrón Ordenado', 'Semitono', 'Pop Art (Puntos)', 'Grabado Grunge', 'Grabado Lineal', 'Dibujo a Lápiz'];
         if (!ditherModes.includes(settings.dithering)) {
+             if (imageState.url !== imageState.originalUrl) {
+                updateImagePreview({ url: imageState.originalUrl });
+            }
             return;
         }
+        
+        setLoading(true);
+        setLoadingMessage('Aplicando vista previa de trama...');
 
         const handler = setTimeout(async () => {
             try {
@@ -148,10 +181,15 @@ const App: React.FC = () => {
             } catch (error) {
                 console.error("Error applying dither preview:", error);
                 setAiError("Ocurrió un error al aplicar el efecto de trama.");
+            } finally {
+                setLoading(false);
             }
         }, 300);
 
-        return () => clearTimeout(handler);
+        return () => {
+            clearTimeout(handler);
+            setLoading(false);
+        };
 
     }, [settings, imageState?.originalUrl]);
 
@@ -173,12 +211,11 @@ const App: React.FC = () => {
                     isVector: file.type === 'image/svg+xml',
                     originalUrl: url,
                 };
-                dispatch({ type: 'CLEAR' });
-                // Reset settings to default for new image to avoid applying old effects
+                
                 setSettings(DEFAULT_SETTINGS);
-                isInitialMount.current = true; // Prevent effect from running on first render of new image
+                isInitialMount.current = true;
                 setAiError(null);
-                pushState({ image: newImageState, objects: [] });
+                dispatch({ type: 'RESET', payload: { image: newImageState, objects: [] } });
             };
             reader.readAsDataURL(file);
         }
@@ -193,17 +230,21 @@ const App: React.FC = () => {
         setLoading(true);
         setLoadingMessage(loadingText);
         try {
-            const [header, base64Data] = imageState.url.split(',');
+            const sourceUrl = imageState.originalUrl || imageState.url;
+            const [header, base64Data] = sourceUrl.split(',');
             const mimeType = header.match(/:(.*?);/)?.[1] || 'image/png';
+            
             const { newBase64, newMimeType } = await editImage(apiKey, aiModel, base64Data, mimeType, prompt);
+            
             const newUrl = `data:${newMimeType};base64,${newBase64}`;
-            pushState({ image: { ...imageState, url: newUrl, originalUrl: newUrl } });
+            const newImageState: ImageState = { ...imageState, url: newUrl, originalUrl: newUrl };
+            pushState({ image: newImageState });
+
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
             setAiError(errorMessage);
-            // Check for keywords indicating an API key or permission issue
             if (/api key|permission|credential|denied/i.test(errorMessage)) {
-                setApiModalOpen(true); // Re-open the modal
+                setApiModalOpen(true);
             }
         } finally {
             setLoading(false);
@@ -213,6 +254,7 @@ const App: React.FC = () => {
     const resetImage = () => {
         if (imageState && imageState.originalUrl) {
             pushState({ image: { ...imageState, url: imageState.originalUrl } });
+            setSettings(DEFAULT_SETTINGS);
             setAiError(null);
         }
     };
@@ -224,9 +266,9 @@ const App: React.FC = () => {
 
     const handleMaterialChange = (material: Material) => {
         const preset = MATERIAL_PRESETS[material];
+        finalizeHistory();
         setSettings(prev => ({ ...prev, ...preset, material }));
         setAiError(null);
-        finalizeHistory();
     };
 
     const handleExport = () => {
@@ -267,12 +309,9 @@ const App: React.FC = () => {
                             object={selectedObject}
                             onUpdate={(id, updates) => {
                                 const newObjects = objects.map(o => o.id === id ? { ...o, ...updates } : o);
-                                // FIX: Add type assertion to resolve complex discriminated union type error.
-                                updateObjects(newObjects as CanvasObject[]);
+                                dispatch({ type: 'UPDATE_PRESENT', payload: { objects: newObjects as CanvasObject[] } });
                             }}
-                            onFinalUpdate={() => {
-                                // This could be used to push to history only on final change
-                            }}
+                            onFinalUpdate={finalizeHistory}
                         />
                     )}
                     {aiError && (
@@ -282,7 +321,7 @@ const App: React.FC = () => {
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                 </svg>
                                 <div className="flex-1">
-                                    <p className="font-bold">Error de IA:</p>
+                                    <p className="font-bold">Error:</p>
                                     <p className="break-words">{aiError}</p>
                                 </div>
                                 <button onClick={() => setAiError(null)} className="p-1 rounded-full hover:bg-red-700">
@@ -302,7 +341,7 @@ const App: React.FC = () => {
                         activeTool={activeTool}
                         selectedObjectId={selectedObjectId}
                         setSelectedObjectId={setSelectedObjectId}
-                        setObjects={updateObjects}
+                        setObjects={(newObjects) => dispatch({ type: 'UPDATE_PRESENT', payload: { objects: newObjects } })}
                     />
                     <ZoomControls
                         zoomLevel={zoomLevel}
@@ -329,7 +368,7 @@ const App: React.FC = () => {
                     onSettingsChange={handleSettingsChange}
                     onAIOperation={handleAIOperation}
                     isMirrored={isMirrored}
-                    setIsMirrored={(value) => { setIsMirrored(value); finalizeHistory(); }}
+                    setIsMirrored={(value) => { finalizeHistory(); setIsMirrored(value); }}
                     resetImage={resetImage}
                     isVisible={isRightSidebarVisible}
                     onClose={() => setRightSidebarVisible(false)}
@@ -337,6 +376,7 @@ const App: React.FC = () => {
                     onAiModelChange={setAiModel}
                     onOpenApiModal={() => setApiModalOpen(true)}
                     onFinalizeHistory={finalizeHistory}
+                    onInteractionStart={handleInteractionStart}
                 />
             </div>
         </div>
