@@ -67,6 +67,33 @@ export async function applyLocalDithering(imageUrl: string, settings: EngravingS
 
     // Apply dithering algorithm
     switch (settings.dithering) {
+        case 'Escala de Grises':
+            const levels = settings.grayscaleLevels || 256;
+            const step = levels > 1 ? 255 / (levels - 1) : 255;
+            const sepiaFactor = (settings.sepiaTone || 0) / 100;
+
+            for (let i = 0; i < grayData.length; i++) {
+                // Apply posterization
+                const posterizedValue = levels === 256 ? grayData[i] : Math.round(grayData[i] / step) * step;
+                const dataIndex = i * 4;
+
+                if (sepiaFactor > 0) {
+                    // Apply sepia tone by interpolating between grayscale and a sepia-toned version
+                    const finalG = posterizedValue * (1 - sepiaFactor) + (posterizedValue * 0.85) * sepiaFactor;
+                    const finalB = posterizedValue * (1 - sepiaFactor) + (posterizedValue * 0.6) * sepiaFactor;
+
+                    data[dataIndex] = posterizedValue; // R channel remains the same for a warm tone
+                    data[dataIndex + 1] = finalG;
+                    data[dataIndex + 2] = finalB;
+                } else {
+                    // Just apply grayscale
+                    data[dataIndex] = posterizedValue;
+                    data[dataIndex + 1] = posterizedValue;
+                    data[dataIndex + 2] = posterizedValue;
+                }
+                data[dataIndex + 3] = 255; // Alpha
+            }
+            break;
         case 'Umbral':
              for (let i = 0; i < grayData.length; i++) {
                 const value = grayData[i] < settings.thresholdValue ? 0 : 255;
@@ -76,14 +103,14 @@ export async function applyLocalDithering(imageUrl: string, settings: EngravingS
             }
             break;
         case 'Difusión de Error': // Floyd-Steinberg
-            const levels = settings.errorDiffusionPaletteLevels;
-            const step = 255 / (levels - 1);
+            const errLevels = settings.errorDiffusionPaletteLevels;
+            const errStep = 255 / (errLevels - 1);
 
             for (let y = 0; y < height; y++) {
                 for (let x = 0; x < width; x++) {
                     const i = y * width + x;
                     const oldPixel = grayData[i];
-                    const newPixel = Math.round(oldPixel / step) * step;
+                    const newPixel = Math.round(oldPixel / errStep) * errStep;
                     const quantError = oldPixel - newPixel;
 
                     grayData[i] = newPixel;

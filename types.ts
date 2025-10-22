@@ -1,4 +1,4 @@
-export type DitheringMode = 'Umbral' | 'Difusión de Error' | 'Patrón Ordenado' | 'Semitono' | 'Pop Art (Puntos)' | 'Grabado Grunge' | 'Grabado Lineal' | 'Dibujo a Lápiz';
+export type DitheringMode = 'Escala de Grises' | 'Umbral' | 'Difusión de Error' | 'Patrón Ordenado' | 'Semitono' | 'Pop Art (Puntos)' | 'Grabado Grunge' | 'Grabado Lineal' | 'Dibujo a Lápiz';
 
 export type Material = 'Madera' | 'Acrílico' | 'Cuero' | 'Metal Anodizado' | 'Vidrio' | 'Personalizado';
 
@@ -19,6 +19,8 @@ export interface EngravingSettings {
   errorDiffusionPaletteLevels: number; // For Difusión de Error
   orderedDitherMatrixSize: number; // For Patrón Ordenado (e.g., 2, 4, 8)
   pencilSketchStrokeWeight: number; // For Dibujo a Lápiz
+  grayscaleLevels: number; // For Escala de Grises
+  sepiaTone: number; // For Escala de Grises
 }
 
 export interface ImageState {

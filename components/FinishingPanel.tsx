@@ -81,8 +81,8 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
       setAiPrompt('');
   };
   
-  const DITHERING_MODES: DitheringMode[] = ['Umbral', 'Difusión de Error', 'Patrón Ordenado', 'Semitono', 'Pop Art (Puntos)', 'Grabado Grunge', 'Grabado Lineal', 'Dibujo a Lápiz'];
-  const showDitherSettings = DITHERING_MODES.includes(settings.dithering);
+  const DITHERING_MODES: DitheringMode[] = ['Escala de Grises', 'Umbral', 'Difusión de Error', 'Patrón Ordenado', 'Semitono', 'Pop Art (Puntos)', 'Grabado Grunge', 'Grabado Lineal', 'Dibujo a Lápiz'];
+  const showStandardDitherSettings = DITHERING_MODES.includes(settings.dithering) && settings.dithering !== 'Escala de Grises';
 
 
   return (
@@ -157,7 +157,7 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
                 {DITHERING_MODES.map(mode => <option key={mode} value={mode}>{mode}</option>)}
             </select>
         </div>
-        {showDitherSettings && (
+        {showStandardDitherSettings && (
             <div className="p-3 bg-gray-800 rounded-md space-y-4">
                  <h5 className="text-sm font-semibold text-center text-gray-200">Ajustes de {settings.dithering}</h5>
                  
@@ -191,6 +191,15 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
                     <Slider label="Desenfoque" value={settings.pencilSketchBlur} min={2} max={20} step={1} onChange={(v) => onSettingsChange('pencilSketchBlur', v)} unit="px" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
                     <Slider label="Grosor de Trazo" value={settings.pencilSketchStrokeWeight} min={0.5} max={3} step={0.1} onChange={(v) => onSettingsChange('pencilSketchStrokeWeight', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
                  </>}
+            </div>
+        )}
+        {settings.dithering === 'Escala de Grises' && (
+            <div className="p-3 bg-gray-800 rounded-md space-y-4">
+                 <h5 className="text-sm font-semibold text-center text-gray-200">Ajustes de Escala de Grises</h5>
+                 <Slider label="Brillo" value={settings.halftoneBrightness} min={-100} max={100} step={1} onChange={(v) => onSettingsChange('halftoneBrightness', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
+                 <Slider label="Contraste" value={settings.halftoneContrast} min={-100} max={100} step={1} onChange={(v) => onSettingsChange('halftoneContrast', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
+                 <Slider label="Niveles de Gris" value={settings.grayscaleLevels} min={2} max={256} step={1} onChange={(v) => onSettingsChange('grayscaleLevels', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />
+                 <Slider label="Tono Sepia" value={settings.sepiaTone} min={0} max={100} step={1} onChange={(v) => onSettingsChange('sepiaTone', v)} onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} unit="%"/>
             </div>
         )}
         <Slider label="Resolución" value={settings.resolution} min={100} max={1000} step={1} onChange={(v) => onSettingsChange('resolution', v)} unit=" DPI" onFinalChange={onFinalizeHistory} onInteractionStart={onInteractionStart} />

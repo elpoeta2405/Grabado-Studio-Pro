@@ -163,7 +163,7 @@ const App: React.FC = () => {
             return;
         }
 
-        const ditherModes: DitheringMode[] = ['Umbral', 'Difusión de Error', 'Patrón Ordenado', 'Semitono', 'Pop Art (Puntos)', 'Grabado Grunge', 'Grabado Lineal', 'Dibujo a Lápiz'];
+        const ditherModes: DitheringMode[] = ['Escala de Grises', 'Umbral', 'Difusión de Error', 'Patrón Ordenado', 'Semitono', 'Pop Art (Puntos)', 'Grabado Grunge', 'Grabado Lineal', 'Dibujo a Lápiz'];
         if (!ditherModes.includes(settings.dithering)) {
              if (imageState.url !== imageState.originalUrl) {
                 updateImagePreview({ url: imageState.originalUrl });
@@ -241,13 +241,33 @@ const App: React.FC = () => {
             pushState({ image: newImageState });
 
         } catch (error) {
-            let errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
-            // Check for rate limit / quota error
-            if (typeof errorMessage === 'string' && (errorMessage.includes('429') || /quota|rate limit/i.test(errorMessage))) {
-                errorMessage = `Has excedido la cuota de uso de la API (plan gratuito). Para continuar usando las funciones de IA, por favor, configura la facturación en tu cuenta de Google. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" class="font-bold text-white underline hover:text-indigo-300">Aprende más aquí.</a>`;
-            } else if (/api key|permission|credential|denied/i.test(errorMessage)) {
-                setApiModalOpen(true);
+            let errorMessage = "Ocurrió un error desconocido.";
+            if (error instanceof Error) {
+                errorMessage = error.message;
             }
+
+            const geminiErrorPrefix = "Error del servicio de IA: ";
+            if (errorMessage.startsWith(geminiErrorPrefix)) {
+                const jsonString = errorMessage.substring(geminiErrorPrefix.length);
+                try {
+                    const apiError = JSON.parse(jsonString);
+                    if (apiError.error) {
+                         if (apiError.error.code === 429 || apiError.error.status === 'RESOURCE_EXHAUSTED') {
+                            errorMessage = `Has excedido la cuota de uso de la API (plan gratuito). Para continuar usando las funciones de IA, por favor, configura la facturación en tu cuenta de Google. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" class="font-bold text-white underline hover:text-indigo-300">Aprende más aquí.</a>`;
+                        } else if (apiError.error.message) {
+                            errorMessage = `Error del servicio de IA: ${apiError.error.message.split('\n')[0]}`;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Could not parse AI error JSON:", e);
+                }
+            }
+            
+            if (/api key|permission|credential|denied/i.test(errorMessage)) {
+                setApiModalOpen(true);
+                return; 
+            }
+
             setAiError(errorMessage);
         } finally {
             setLoading(false);

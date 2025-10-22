@@ -17,6 +17,8 @@ export const DEFAULT_SETTINGS: EngravingSettings = {
   errorDiffusionPaletteLevels: 2,
   orderedDitherMatrixSize: 4,
   pencilSketchStrokeWeight: 1.5,
+  grayscaleLevels: 256,
+  sepiaTone: 0,
 };
 
 // FIX: Add and export MATERIAL_PRESETS to be used in the UI
