@@ -97,7 +97,6 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
                 disabled={!hasImage}
             >
                 <option value="gemini-2.5-flash-image">Gemini 2.5 Flash Image</option>
-                <option value="gemini-pro">Gemini Pro</option>
             </select>
         </div>
         <p className="text-xs text-gray-400 mb-2">Describe un cambio, ej., "añade una luna en el cielo".</p>
@@ -138,7 +137,7 @@ const FinishingPanel: React.FC<FinishingPanelProps> = ({
         </div>
         <div className="flex justify-between items-center">
             <span className="font-medium text-gray-300">Inverso (Negativo)</span>
-            <button onClick={() => { onSettingsChange('isInverse', !settings.isInverse); onFinalizeHistory(); }} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${settings.isInverse ? 'bg-brand-primary' : 'bg-gray-600'}`}>
+            <button onClick={() => { onFinalizeHistory(); onSettingsChange('isInverse', !settings.isInverse); }} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${settings.isInverse ? 'bg-brand-primary' : 'bg-gray-600'}`}>
                 <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${settings.isInverse ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
         </div>

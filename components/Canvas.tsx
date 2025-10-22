@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 // FIX: Import CanvasObject, TextObject, ShapeObject, and Tool types to be used in props and rendering.
 import { ImageState, CanvasObject, TextObject, ShapeObject, Tool } from '../types';
 
@@ -6,6 +6,7 @@ interface CanvasProps {
   imageState: ImageState;
   isMirrored: boolean;
   zoomLevel: number;
+  onZoomChange: (zoom: number) => void;
   isInverse: boolean;
   // FIX: Add missing props to align with what App.tsx passes.
   objects: CanvasObject[];
@@ -15,10 +16,18 @@ interface CanvasProps {
   setObjects: (objects: CanvasObject[]) => void;
 }
 
+const getDistanceBetweenTouches = (touch1: React.Touch, touch2: React.Touch) => {
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+};
+
 const Canvas = ({
-  imageState, isMirrored, zoomLevel, isInverse, objects, setSelectedObjectId
+  imageState, isMirrored, zoomLevel, onZoomChange, isInverse, objects, setSelectedObjectId
 }: CanvasProps) => {
   const { url: imageUrl } = imageState;
+  const pinchStateRef = useRef<{ initialDistance: number; initialZoom: number } | null>(null);
+
 
   // FIX: Added function to render different canvas object types.
   const renderObject = (obj: CanvasObject) => {
@@ -51,9 +60,38 @@ const Canvas = ({
             return null;
     }
   };
+  
+  const handleTouchStart = (e: React.TouchEvent) => {
+      if (e.touches.length === 2) {
+          e.preventDefault();
+          pinchStateRef.current = {
+              initialDistance: getDistanceBetweenTouches(e.touches[0], e.touches[1]),
+              initialZoom: zoomLevel,
+          };
+      }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+      if (e.touches.length === 2 && pinchStateRef.current) {
+          e.preventDefault();
+          const newDistance = getDistanceBetweenTouches(e.touches[0], e.touches[1]);
+          const { initialDistance, initialZoom } = pinchStateRef.current;
+          const newZoom = initialZoom * (newDistance / initialDistance);
+          onZoomChange(Math.max(0.1, Math.min(newZoom, 5))); // Clamp zoom level
+      }
+  };
+
+  const handleTouchEnd = () => {
+      pinchStateRef.current = null;
+  };
 
   return (
-    <div className="w-full h-full bg-gray-700 rounded-lg flex items-center justify-center overflow-auto border-2 border-dashed border-gray-600">
+    <div 
+      className="w-full h-full bg-gray-700 rounded-lg flex items-center justify-center overflow-auto border-2 border-dashed border-gray-600 touch-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
       {imageUrl ? (
         <div style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center' }}>
             <svg

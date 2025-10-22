@@ -14,6 +14,7 @@ import { applyLocalDithering } from './components/services/imageProcessor';
 type HistoryState = {
     image: ImageState | null;
     objects: CanvasObject[];
+    isMirrored: boolean;
 };
 
 type HistoryAction =
@@ -81,7 +82,6 @@ const App: React.FC = () => {
     const [settings, setSettings] = useState<EngravingSettings>(DEFAULT_SETTINGS);
     const [isLoading, setLoading] = useState(false);
     const [loadingMessage, setLoadingMessage] = useState('');
-    const [isMirrored, setIsMirrored] = useState(false);
     const [zoomLevel, setZoomLevel] = useState(1);
     const [apiKey, setApiKey] = useState<string | null>(null);
     const [isApiModalOpen, setApiModalOpen] = useState(false);
@@ -107,12 +107,12 @@ const App: React.FC = () => {
 
     const [history, dispatch] = useReducer(historyReducer, {
         past: [],
-        present: { image: null, objects: [] },
+        present: { image: null, objects: [], isMirrored: false },
         future: [],
     });
 
     const { present: currentCanvasState } = history;
-    const { image: imageState, objects } = currentCanvasState;
+    const { image: imageState, objects, isMirrored } = currentCanvasState;
     const canUndo = history.past.length > 0;
     const canRedo = history.future.length > 0;
 
@@ -215,7 +215,7 @@ const App: React.FC = () => {
                 setSettings(DEFAULT_SETTINGS);
                 isInitialMount.current = true;
                 setAiError(null);
-                dispatch({ type: 'RESET', payload: { image: newImageState, objects: [] } });
+                dispatch({ type: 'RESET', payload: { image: newImageState, objects: [], isMirrored: false } });
             };
             reader.readAsDataURL(file);
         }
@@ -241,11 +241,14 @@ const App: React.FC = () => {
             pushState({ image: newImageState });
 
         } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
-            setAiError(errorMessage);
-            if (/api key|permission|credential|denied/i.test(errorMessage)) {
+            let errorMessage = error instanceof Error ? error.message : "Ocurrió un error desconocido.";
+            // Check for rate limit / quota error
+            if (typeof errorMessage === 'string' && (errorMessage.includes('429') || /quota|rate limit/i.test(errorMessage))) {
+                errorMessage = `Has excedido la cuota de uso de la API (plan gratuito). Para continuar usando las funciones de IA, por favor, configura la facturación en tu cuenta de Google. <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" class="font-bold text-white underline hover:text-indigo-300">Aprende más aquí.</a>`;
+            } else if (/api key|permission|credential|denied/i.test(errorMessage)) {
                 setApiModalOpen(true);
             }
+            setAiError(errorMessage);
         } finally {
             setLoading(false);
         }
@@ -280,6 +283,10 @@ const App: React.FC = () => {
         link.click();
         document.body.removeChild(link);
     };
+
+    const handleZoomChange = useCallback((newZoom: number) => {
+        setZoomLevel(newZoom);
+    }, []);
 
     const selectedObject = objects.find(obj => obj.id === selectedObjectId);
 
@@ -321,8 +328,8 @@ const App: React.FC = () => {
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                                 </svg>
                                 <div className="flex-1">
-                                    <p className="font-bold">Error:</p>
-                                    <p className="break-words">{aiError}</p>
+                                    <p className="font-bold">Error de IA:</p>
+                                    <p className="break-words" dangerouslySetInnerHTML={{ __html: aiError }}></p>
                                 </div>
                                 <button onClick={() => setAiError(null)} className="p-1 rounded-full hover:bg-red-700">
                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -337,6 +344,7 @@ const App: React.FC = () => {
                         objects={objects}
                         isMirrored={isMirrored}
                         zoomLevel={zoomLevel}
+                        onZoomChange={handleZoomChange}
                         isInverse={settings.isInverse}
                         activeTool={activeTool}
                         selectedObjectId={selectedObjectId}
@@ -345,7 +353,7 @@ const App: React.FC = () => {
                     />
                     <ZoomControls
                         zoomLevel={zoomLevel}
-                        onZoomIn={() => setZoomLevel(z => Math.min(z + 0.1, 3))}
+                        onZoomIn={() => setZoomLevel(z => Math.min(z + 0.1, 5))}
                         onZoomOut={() => setZoomLevel(z => Math.max(z - 0.1, 0.1))}
                         onResetZoom={() => setZoomLevel(1)}
                     />
@@ -368,7 +376,7 @@ const App: React.FC = () => {
                     onSettingsChange={handleSettingsChange}
                     onAIOperation={handleAIOperation}
                     isMirrored={isMirrored}
-                    setIsMirrored={(value) => { finalizeHistory(); setIsMirrored(value); }}
+                    setIsMirrored={(value) => pushState({ isMirrored: value })}
                     resetImage={resetImage}
                     isVisible={isRightSidebarVisible}
                     onClose={() => setRightSidebarVisible(false)}
